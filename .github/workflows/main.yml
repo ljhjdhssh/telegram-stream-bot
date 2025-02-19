@@ -1,0 +1,50 @@
+from pyrogram import Client, filters
+from pytgcalls import PyTgCalls, Stream
+from yt_dlp import YoutubeDL
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+
+# Telegram Bot Credentials
+API_ID = "28893573"
+API_HASH = "442668b8630273d4c4ae45e07d7b6920"
+BOT_TOKEN = "8064390829:AAGe4vvnoceynoR-mVHbrBUzUadXAOLdpHs"
+
+# Spotify Credentials
+SPOTIFY_CLIENT_ID = "f442ff02e6904a35863cdcac48e0e743"
+SPOTIFY_CLIENT_SECRET = "9d0ce7c31992452a86ec984a965b0801"
+
+app = Client("music_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+pytgcalls = PyTgCalls(app)
+sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=SPOTIFY_CLIENT_ID, client_secret=SPOTIFY_CLIENT_SECRET))
+
+# YouTube Stream Function
+def get_youtube_audio(url):
+    ydl_opts = {"format": "bestaudio"}
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return info["url"]
+
+# Spotify to YouTube Search
+def spotify_to_youtube(query):
+    results = sp.search(query, limit=1)
+    track = results["tracks"]["items"][0]
+    song_name = track["name"] + " " + track["artists"][0]["name"]
+    search_url = f"https://www.youtube.com/results?search_query={song_name.replace(' ', '+')}"
+    return search_url  # Isko aur improve kar sakte hain
+
+# Command to Play Music
+@app.on_message(filters.command("play"))
+async def play(_, message):
+    query = " ".join(message.command[1:])
+    yt_url = spotify_to_youtube(query)
+    stream_url = get_youtube_audio(yt_url)
+    await pytgcalls.join_group_call(message.chat.id, Stream(stream_url))
+    await message.reply_text(f"Now Playing: {query}")
+
+@app.on_message(filters.command("stop"))
+async def stop(_, message):
+    await pytgcalls.leave_group_call(message.chat.id)
+    await message.reply_text("Music Stopped.")
+
+pytgcalls.start()
+app.run()
